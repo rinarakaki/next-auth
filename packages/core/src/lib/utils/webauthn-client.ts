@@ -1,19 +1,23 @@
-//@ts-check
-
 // Declare a SimpleWebAuthnBrowser variable as part of "window"
 
-/** @typedef {"authenticate"} WebAuthnAuthenticate */
-/** @typedef {"register"} WebAuthnRegister */
-/** @typedef {WebAuthnRegister | WebAuthnAuthenticate} WebAuthnOptionsAction */
-/**
- * @template {WebAuthnOptionsAction} T
- * @typedef {T extends WebAuthnAuthenticate ?
- *  { options: import("@simplewebauthn/types").PublicKeyCredentialRequestOptionsJSON; action: "authenticate" } :
- *  T extends WebAuthnRegister ?
- *  { options: import("@simplewebauthn/types").PublicKeyCredentialCreationOptionsJSON; action: "register" } :
- * never
- * } WebAuthnOptionsReturn
- */
+import type { SimpleWebAuthnBrowser } from "@simplewebauthn/browser"
+
+export type WebAuthnAuthenticate = "authenticate"
+export type WebAuthnRegister = "register"
+export type WebAuthnOptionsAction = WebAuthnAuthenticate | WebAuthnRegister
+
+export type WebAuthnOptionsReturn<T extends WebAuthnOptionsAction> =
+  T extends WebAuthnAuthenticate
+    ? {
+        options: import("@simplewebauthn/types").PublicKeyCredentialRequestOptionsJSON
+        action: "authenticate"
+      }
+    : T extends WebAuthnRegister
+      ? {
+          options: import("@simplewebauthn/types").PublicKeyCredentialCreationOptionsJSON
+          action: "register"
+        }
+      : never
 
 /**
  * webauthnScript is the client-side script that handles the webauthn form
@@ -21,19 +25,17 @@
  * @param {string} authURL is the URL of the auth API
  * @param {string} providerID is the ID of the webauthn provider
  */
-export async function webauthnScript(authURL, providerID) {
+export async function webauthnScript(authURL: string, providerID: string) {
   /** @type {typeof import("@simplewebauthn/browser")} */
   // @ts-ignore
   const WebAuthnBrowser = window.SimpleWebAuthnBrowser
 
   /**
    * Fetch webauthn options from the server
-   *
-   * @template {WebAuthnOptionsAction} T
-   * @param {T | undefined} action action to fetch options for
-   * @returns {Promise<WebAuthnOptionsReturn<T> | undefined>}
    */
-  async function fetchOptions(action) {
+  async function fetchOptions<T extends WebAuthnOptionsAction>(
+    action: T | undefined
+  ): Promise<WebAuthnOptionsReturn<T> | undefined> {
     // Create the options URL with the action and query parameters
     const url = new URL(`${authURL}/webauthn-options/${providerID}`)
 
@@ -56,13 +58,10 @@ export async function webauthnScript(authURL, providerID) {
 
   /**
    * Get the webauthn form from the page
-   *
-   * @returns {HTMLFormElement}
    */
-  function getForm() {
+  function getForm(): HTMLFormElement {
     const formID = `#${providerID}-form`
-    /** @type {HTMLFormElement | null} */
-    const form = document.querySelector(formID)
+    const form = document.querySelector<HTMLFormElement>(formID)
     if (!form) throw new Error(`Form '${formID}' not found`)
 
     return form
@@ -70,14 +69,11 @@ export async function webauthnScript(authURL, providerID) {
 
   /**
    * Get formFields from the form
-   *
-   * @returns {HTMLInputElement[]}
    */
-  function getFormFields() {
+  function getFormFields(): HTMLInputElement[] {
     const form = getForm()
-    /** @type {HTMLInputElement[]} */
     const formFields = Array.from(
-      form.querySelectorAll("input[data-form-field]")
+      form.querySelectorAll<HTMLInputElement>("input[data-form-field]")
     )
 
     return formFields
@@ -89,9 +85,11 @@ export async function webauthnScript(authURL, providerID) {
    *
    * @param {WebAuthnOptionsAction} action action to submit
    * @param {unknown | undefined} data optional data to submit
-   * @returns {Promise<void>}
    */
-  async function submitForm(action, data) {
+  async function submitForm(
+    action: WebAuthnOptionsAction,
+    data: unknown | undefined
+  ): Promise<void> {
     const form = getForm()
 
     // If a POST request, create hidden fields in the form
@@ -119,11 +117,12 @@ export async function webauthnScript(authURL, providerID) {
    * Executes the authentication flow by fetching options from the server,
    * starting the authentication, and submitting the response to the server.
    *
-   * @param {WebAuthnOptionsReturn<WebAuthnAuthenticate>['options']} options
    * @param {boolean} autofill Whether or not to use the browser's autofill
-   * @returns {Promise<void>}
    */
-  async function authenticationFlow(options, autofill) {
+  async function authenticationFlow(
+    options: WebAuthnOptionsReturn<WebAuthnAuthenticate>["options"],
+    autofill: boolean
+  ): Promise<void> {
     // Start authentication
     const authResp = await WebAuthnBrowser.startAuthentication(
       options,
@@ -134,10 +133,9 @@ export async function webauthnScript(authURL, providerID) {
     return await submitForm("authenticate", authResp)
   }
 
-  /**
-   * @param {WebAuthnOptionsReturn<WebAuthnRegister>['options']} options
-   */
-  async function registrationFlow(options) {
+  async function registrationFlow(
+    options: WebAuthnOptionsReturn<WebAuthnRegister>["options"]
+  ) {
     // Check if all required formFields are set
     const formFields = getFormFields()
     formFields.forEach((field) => {
@@ -156,10 +154,8 @@ export async function webauthnScript(authURL, providerID) {
   /**
    * Attempts to authenticate the user when the page loads
    * using the browser's autofill popup.
-   *
-   * @returns {Promise<void>}
    */
-  async function autofillAuthentication() {
+  async function autofillAuthentication(): Promise<void> {
     // if the browser can't handle autofill, don't try
     if (!WebAuthnBrowser.browserSupportsWebAuthnAutofill()) return
 
